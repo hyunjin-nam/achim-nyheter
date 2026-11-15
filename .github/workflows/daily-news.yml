@@ -1,0 +1,31 @@
+name: Daily news
+
+on:
+  schedule:
+    - cron: '0 21 * * *' # 21:00 UTC = 22:00 in Stockholm, 06:00 in Seoul. Takes ~15 min, so it is ready before 08:00 in both
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: node scripts/build-news.mjs
+        env:
+          # Add a repository secret named GEMINI_API_KEY (free key from aistudio.google.com).
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      - name: Commit news.json
+        run: |
+          git config user.name "daily-news"
+          git config user.email "daily-news@users.noreply.github.com"
+          git add docs/news.json
+          git diff --staged --quiet || git commit -m "Daily news $(date -u +%F)"
+          git push

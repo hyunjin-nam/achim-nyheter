@@ -1,65 +1,34 @@
-/**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://unistyl.es/), etc.
- */
-
-import '@/global.css';
-
-import { Platform } from 'react-native';
-
 export const Colors = {
   light: {
-    text: '#000000',
-    background: '#ffffff',
-    backgroundElement: '#F0F0F3',
-    backgroundSelected: '#E0E1E6',
-    textSecondary: '#60646C',
+    bg: '#F4F4F6',
+    card: '#FFFFFF',
+    text: '#111113',
+    muted: '#8A8A91',
+    line: '#E6E6EA',
+    chip: '#ECECF0',
+    kr: '#3B6EF5',
+    se: '#E0A100',
+    gl: '#1F9D7A',
+    onAccent: '#FFFFFF',
   },
   dark: {
-    text: '#ffffff',
-    background: '#000000',
-    backgroundElement: '#212225',
-    backgroundSelected: '#2E3135',
-    textSecondary: '#B0B4BA',
+    bg: '#0D0D0F',
+    card: '#1B1B1F',
+    text: '#F4F2EE',
+    muted: '#8E8B85',
+    line: '#2A2A2F',
+    chip: '#26262B',
+    kr: '#6F93FF',
+    se: '#F2BC2B',
+    gl: '#4CC9A0',
+    onAccent: '#101012',
   },
 } as const;
 
-export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
+export type Palette = Record<keyof (typeof Colors)["light"], string>;
 
-export const Fonts = Platform.select({
-  ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
-    sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
-    serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
-    rounded: 'ui-rounded',
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
-    mono: 'ui-monospace',
-  },
-  default: {
-    sans: 'normal',
-    serif: 'serif',
-    rounded: 'normal',
-    mono: 'monospace',
-  },
-  web: {
-    sans: 'var(--font-display)',
-    serif: 'var(--font-serif)',
-    rounded: 'var(--font-rounded)',
-    mono: 'var(--font-mono)',
-  },
-});
+// The app font (Pretendard) is applied by components/text.tsx, which picks the file by font weight.
+export const Fonts = { serif: undefined as string | undefined, sans: undefined as string | undefined };
 
-export const Spacing = {
-  half: 2,
-  one: 4,
-  two: 8,
-  three: 16,
-  four: 24,
-  five: 32,
-  six: 64,
-} as const;
-
-export const BottomTabInset = Platform.select({ ios: 50, android: 80 }) ?? 0;
-export const MaxContentWidth = 800;
+// Phone-sized column; on a wide browser the app stays a centered phone-width column.
+export const MaxWidth = 480;
