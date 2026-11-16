@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Text } from '@/components/text';
 import { StoryCard } from '@/components/story-card';
-import { Fonts, MaxWidth } from '@/constants/theme';
+import { MaxWidth, Stroke } from '@/constants/theme';
 import { resolveStory } from '@/lib/levels';
 import { useNews } from '@/lib/news';
 import { useRead } from '@/lib/read';
@@ -39,9 +39,9 @@ export default function Archive() {
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.column}>
           <View style={styles.header}>
-            <Text style={[styles.title, { color: c.text, fontFamily: Fonts.serif }]}>{t.archiveTitle}</Text>
-            <Pressable onPress={() => router.back()} hitSlop={12}>
-              <Text style={[styles.done, { color: c.kr }]}>✕</Text>
+            <Text style={[styles.title, { color: c.text }]}>{t.archiveTitle}</Text>
+            <Pressable onPress={() => router.back()} hitSlop={12} style={[styles.done, { backgroundColor: c.sun, borderColor: c.onSun }]}>
+              <Text style={[styles.doneText, { color: c.onSun }]}>{t.close}</Text>
             </Pressable>
           </View>
 
@@ -69,14 +69,14 @@ export default function Archive() {
                   <Pressable
                     key={s.url}
                     onPress={() => setOpen(s.url)}
-                    style={[styles.row, { backgroundColor: c.card, borderColor: c.line }]}>
-                    <View style={[styles.dot, { backgroundColor: dot }]} />
+                    style={[styles.row, { backgroundColor: c.card, borderColor: c.outline }]}>
+                    <View style={[styles.dot, { backgroundColor: dot, borderColor: c.onSun }]} />
                     <View style={{ flex: 1, gap: 2 }}>
                       <Text style={{ color: c.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1 }}>
                         {t[s.country].toUpperCase()}
                         {readUrls.includes(s.url) ? '  ✓' : ''}
                       </Text>
-                      <Text style={{ color: c.text, fontSize: 16, lineHeight: 22, fontWeight: '600' }} numberOfLines={2}>
+                      <Text style={{ color: c.text, fontSize: 16, lineHeight: 22, fontWeight: '700' }} numberOfLines={2}>
                         {story.title[lang]}
                       </Text>
                     </View>
@@ -96,16 +96,17 @@ const styles = StyleSheet.create({
   scroll: { alignItems: 'center', paddingBottom: 48 },
   column: { width: '100%', maxWidth: MaxWidth, paddingHorizontal: 20, paddingTop: 16, gap: 22 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  title: { fontSize: 32, fontWeight: '700' },
-  done: { fontSize: 20, fontWeight: '600' },
+  title: { fontSize: 32, fontWeight: '800', letterSpacing: -1.2 },
+  done: { paddingHorizontal: 16, height: 40, borderRadius: 20, borderWidth: Stroke, justifyContent: 'center' },
+  doneText: { fontSize: 15, fontWeight: '700' },
   day: { fontSize: 12, fontWeight: '700', letterSpacing: 1.2 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: Stroke,
     padding: 14,
   },
-  dot: { width: 8, height: 8, borderRadius: 4 },
+  dot: { width: 12, height: 12, borderRadius: 6, borderWidth: 1.5 },
 });

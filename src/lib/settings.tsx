@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
-import { DEFAULT_SETTINGS, type Settings } from './types';
+import { CHOOSABLE_LEVELS, DEFAULT_SETTINGS, type Settings } from './types';
 
 const KEY = 'settings.v2';
 
@@ -15,7 +15,12 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     AsyncStorage.getItem(KEY)
       .then((raw) => {
-        if (raw) setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(raw) });
+        if (raw) {
+          const saved = { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
+          // A level that is no longer offered (A2, C1) goes back to the default.
+          if (!CHOOSABLE_LEVELS.includes(saved.level)) saved.level = DEFAULT_SETTINGS.level;
+          setSettings(saved);
+        }
       })
       .catch(() => {})
       .finally(() => setReady(true));

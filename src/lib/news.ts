@@ -42,7 +42,8 @@ export function useNews() {
   useEffect(() => {
     if (!NEWS_URL) return;
     let cancelled = false;
-    fetch(NEWS_URL)
+    // no-cache: always ask GitHub Pages whether there is a newer file (it lets browsers cache for 10 min).
+    fetch(NEWS_URL, { cache: 'no-cache' })
       .then((r) => r.json())
       .then((json: { days: Day[] }) => {
         if (!cancelled && json.days?.length) {

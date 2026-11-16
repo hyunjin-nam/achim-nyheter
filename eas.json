@@ -6,13 +6,16 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": { "EXPO_PUBLIC_NEWS_URL": "https://hyunjin-nam.github.io/achim-nyheter/news.json" }
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": { "EXPO_PUBLIC_NEWS_URL": "https://hyunjin-nam.github.io/achim-nyheter/news.json" }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": { "EXPO_PUBLIC_NEWS_URL": "https://hyunjin-nam.github.io/achim-nyheter/news.json" }
     }
   },
   "submit": {

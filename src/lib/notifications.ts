@@ -1,4 +1,5 @@
 import * as Notifications from 'expo-notifications';
+import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 
 import { resolveStory } from './levels';
@@ -14,6 +15,34 @@ if (Platform.OS !== 'web') {
       shouldSetBadge: false,
     }),
   });
+}
+
+/**
+ * Calls `onTap` with the story URL of a tapped notification: one tapped while the app runs, or the one
+ * that launched it. The launch tap is cleared once handled, so reopening the app later does not jump again.
+ */
+export function useNotificationTap(onTap: (url: string) => void) {
+  const latest = useRef(onTap);
+  latest.current = onTap;
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    const handle = (r: Notifications.NotificationResponse | null) => {
+      if (!r || r.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) return;
+      const url = r.notification.request.content.data?.url;
+      if (typeof url === 'string') latest.current(url);
+    };
+    Notifications.getLastNotificationResponseAsync()
+      .then((r) => {
+        handle(r);
+        if (r) return Notifications.clearLastNotificationResponseAsync();
+      })
+      .catch(() => {});
+    const sub = Notifications.addNotificationResponseReceivedListener((r) => {
+      handle(r);
+      Notifications.clearLastNotificationResponseAsync().catch(() => {});
+    });
+    return () => sub.remove();
+  }, []);
 }
 
 /** Shown only when there are no stories at all. */

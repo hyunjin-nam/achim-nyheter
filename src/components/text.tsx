@@ -3,6 +3,7 @@ import { StyleSheet, Text as RNText, type TextProps } from 'react-native';
 /** Pretendard has one font file per weight, so the weight in a style picks the file. */
 function familyFor(weight: string | number | undefined) {
   const w = weight === 'bold' ? 700 : weight === 'normal' || weight == null ? 400 : Number(weight);
+  if (w >= 800) return 'Pretendard-ExtraBold';
   if (w >= 700) return 'Pretendard-Bold';
   if (w >= 600) return 'Pretendard-SemiBold';
   if (w >= 500) return 'Pretendard-Medium';

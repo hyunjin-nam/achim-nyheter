@@ -97,7 +97,8 @@ async function readArticle(url) {
   }
 }
 
-async function pick(country, already) {
+/** Up to `max` new feed items for a country, taken from the feeds in turn (titles and descriptions only). */
+async function candidates(country, already, max) {
   const lists = [];
   for (const feed of FEEDS[country]) {
     try {
@@ -106,41 +107,113 @@ async function pick(country, already) {
       console.warn(`  ! ${feed.source}: ${e.message}`);
     }
   }
-  const picked = [];
-  // Round-robin over the feeds: one from each in turn.
-  for (let round = 0; picked.length < PER_COUNTRY && round < 30; round++) {
+  const out = [];
+  for (let round = 0; out.length < max && round < 30; round++) {
     let any = false;
     for (const list of lists) {
       const item = list[round];
       if (!item) continue;
       any = true;
-      if (picked.length >= PER_COUNTRY || already.has(item.url) || picked.some((p) => p.url === item.url)) continue;
-      const art = await readArticle(item.url);
-      const body = art.body.length > item.description.length ? art.body : item.description;
-      if (body.length < 120) continue; // too little to write a story from
-      picked.push({ country, ...item, body, image: art.image });
+      if (out.length >= max || already.has(item.url) || out.some((p) => p.url === item.url)) continue;
+      out.push({ country, ...item });
     }
     if (!any) break;
+  }
+  return out;
+}
+
+/** Reads the articles in the given order until `count` have enough text to write a story from. */
+async function fill(ordered, count) {
+  const picked = [];
+  for (const item of ordered) {
+    if (picked.length >= count) break;
+    const art = await readArticle(item.url);
+    const body = art.body.length > item.description.length ? art.body : item.description;
+    if (body.length < 120) continue; // too little to write a story from
+    picked.push({ ...item, body, image: art.image });
   }
   return picked;
 }
 
+const RANK_SYSTEM = `You choose the news for a language-learning app. Readers are adults learning Korean or Swedish.
+You get numbered candidate headlines (with a short description) for three groups: KR = news in Korea, SE = news in Sweden, GL = world news.
+For each group, order ALL its candidate ids from best to worst. Best means:
+1. Important today for people living there (KR: Korea, SE: Sweden, GL: the world): news many people talk about and that affects daily life, society or politics.
+2. Easy to understand for a learner: concrete, everyday topics beat technical, legal or financial detail.
+Put celebrity gossip, sports results, minor crime details and advertorials last unless they are truly major news.
+For every candidate also give "event": a short English label of the news event it reports (e.g. "Korea-Philippines summit", "Swedish government talks"). Candidates about the same event, even from different outlets or with different angles, MUST get exactly the same label.
+Return each group's candidates under its key, every id exactly once, best first.`;
+const RANK_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['KR', 'SE', 'GL'],
+  properties: Object.fromEntries(
+    ['KR', 'SE', 'GL'].map((k) => [
+      k,
+      {
+        type: 'array',
+        items: { type: 'object', additionalProperties: false, required: ['id', 'event'], properties: { id: { type: 'string' }, event: { type: 'string' } } },
+      },
+    ]),
+  ),
+};
+
+/** One request for all countries: candidates in order of importance and ease. Falls back to feed order. */
+async function rank(client, byCountry) {
+  const ids = new Map();
+  const input = Object.entries(byCountry)
+    .map(([country, list]) => `${country}\n` + list.map((c, i) => {
+      const id = `${country}${i}`;
+      ids.set(id, c);
+      return `${id}. ${c.title}${c.description ? ' — ' + c.description.slice(0, 200) : ''}`;
+    }).join('\n'))
+    .join('\n\n');
+  try {
+    const res = await callJson(client, RANK_SYSTEM, input, RANK_SCHEMA);
+    const out = {};
+    for (const [country, list] of Object.entries(byCountry)) {
+      // One story per event first; repeats of an event and anything the model left out go to the end.
+      const events = new Set();
+      const first = [];
+      const later = [];
+      for (const { id, event } of res[country] ?? []) {
+        const c = ids.get(id);
+        if (!c || c.country !== country) continue;
+        const key = String(event).trim().toLowerCase();
+        (key && events.has(key) ? later : first).push(c);
+        if (key) events.add(key);
+      }
+      out[country] = [...new Set([...first, ...later, ...list])];
+    }
+    return out;
+  } catch (e) {
+    console.warn(`  ! ranking failed, using feed order: ${e.message}`);
+    return byCountry;
+  }
+}
+
 // ---------------------------------------------------------------- writing
 //
-// One story = 3 text requests (a2, b1, c1) run at the same time, then 2 glossary requests (ko, sv)
-// at the same time. Several stories are also written at once. Many small requests finish much sooner
-// than one huge one.
+// One story = 2 requests: one writes both levels (a1, b1) in ko/sv/en, then one does the word meanings,
+// sentence translations and grammar notes for both levels in Korean and Swedish.
+// The free tier limits requests per minute, so few big requests are much lighter than many small ones.
 
 const CONCURRENCY = Number(process.env.NEWS_CONCURRENCY ?? 3);
 const LANGS = ['ko', 'sv', 'en'];
 const LANG_NAME = { ko: 'Korean', sv: 'Swedish', en: 'English' };
 const langObj = { type: 'object', additionalProperties: false, required: LANGS, properties: Object.fromEntries(LANGS.map((l) => [l, { type: 'string' }])) };
-const TEXT_SCHEMA = { type: 'object', additionalProperties: false, required: ['title', 'summary'], properties: { title: langObj, summary: langObj } };
+const oneText = { type: 'object', additionalProperties: false, required: ['title', 'summary'], properties: { title: langObj, summary: langObj } };
 const entry = {
   type: 'object',
   additionalProperties: false,
-  required: ['word', 'base', 'en'],
-  properties: { word: { type: 'string' }, base: { type: 'string' }, en: { type: 'string' } },
+  required: ['word', 'base', 'en', 'level', 'grammar'],
+  properties: {
+    word: { type: 'string' },
+    base: { type: 'string' },
+    en: { type: 'string' },
+    level: { type: 'string', enum: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'] },
+    grammar: { type: 'string' },
+  },
 };
 // What the model returns for the sentences of one text: for each sentence its English translation
 // and the meaning of every word as used in that sentence.
@@ -163,15 +236,18 @@ const GLOSS_SCHEMA = {
 
 const LEVELS = {
   a1: 'very easy news for ADULT beginners, like the "easy language" news sites for immigrants (Nyheter på lätt svenska, 쉬운 한국어 뉴스). Short, concrete sentences of about 6-10 words, everyday words, simple tenses. About 8-10 sentences. Keep the real facts of the article. It must still read like adult news: never childish, no baby talk, no exclamations, no talking down to the reader.',
-  a2: 'plain-language news for adult learners. Sentences of about 8-14 words, common everyday words; if a harder word cannot be avoided, use it once and make its meaning clear from the sentence. About 12-14 sentences. Same facts and same adult tone as the article, just simpler language. Not a story for children.',
   b1: 'everyday news language that an intermediate learner can follow: clear sentences of at most about 18 words, no jargon or rare words (explain a needed term briefly). About 16-20 sentences.',
-  c1: 'richer vocabulary and sentence structure, with the background, context and detail from the article. About 24-30 sentences.',
 };
+const LEVEL_KEYS = Object.keys(LEVELS);
+// Both levels come back from one request.
+const TEXT_SCHEMA = { type: 'object', additionalProperties: false, required: LEVEL_KEYS, properties: Object.fromEntries(LEVEL_KEYS.map((l) => [l, oneText])) };
 
-const textSystem = (level) => `You write news items for two people learning each other's languages: one learns Swedish, one learns Korean. Everyone also reads English.
+const textSystem = () => `You write news items for two people learning each other's languages: one learns Swedish, one learns Korean. Everyone also reads English.
 
-Write the article you are given at CEFR level ${level.toUpperCase()}: ${LEVELS[level]}
-Give it in Korean (ko), Swedish (sv) and English (en). Each language has a title and a summary, which is the full article text in 3-6 short paragraphs separated by a blank line. Cover the whole article, not only its opening. Titles are plain headlines, not clickbait.
+Write the article you are given twice, at two CEFR levels, and return each under its key:
+${LEVEL_KEYS.map((l) => `- "${l}" = level ${l.toUpperCase()}: ${LEVELS[l]}`).join('\n')}
+The two levels tell the same news; they differ only in how simple the language is and how much detail they include.
+Give each level in Korean (ko), Swedish (sv) and English (en). Each language has a title and a summary, which is the full article text in 3-6 short paragraphs separated by a blank line. Cover the whole article, not only its opening. Titles are plain headlines, not clickbait.
 
 Rules:
 - Use only facts stated in the article text you are given. Never add details, numbers or quotes that are not in it. If the article is short, write fewer sentences rather than inventing.
@@ -183,14 +259,19 @@ Style, which matters a lot. Write the way a friendly person tells the news out l
 - Swedish (sv): plain, natural everyday Swedish (klarspråk), not stiff or bureaucratic. Short sentences. ALWAYS spell Swedish with its real letters å, ä and ö (för, sjö, hälsa, när). Never replace them with a, o or ASCII, also not in the easiest levels or in titles.
 - English (en): plain, natural English, short sentences.`;
 
-const glossSystem = (lang) => `You help a learner read ${LANG_NAME[lang]} news. You get a numbered list of sentences (number 0 is the title). Work through them one by one:
+const glossSystem = () => `You help learners read Korean and Swedish news. You get several numbered lists of sentences, each under a header such as "A1 KOREAN" or "B1 SWEDISH" (in each list number 0 is the title). Do the work below for every sentence of every list and return each list's results under its level and language, e.g. "A1 KOREAN" under "a1" → "ko", "B1 SWEDISH" under "b1" → "sv". Work through the sentences one by one:
 1. Read the WHOLE sentence first and understand what it means in its context.
 2. "en": translate the whole sentence into natural English.
 3. "words": list every word of the sentence, in order. For each word:
    - "word": exactly as written in the sentence (for Korean the whole space-separated token including its particle or ending, e.g. 첫눈이), without punctuation, lower-cased.
    - "base": its dictionary form (Korean: 첫눈, 내리다; Swedish: snö, falla).
    - "en": what the word means IN THIS SENTENCE, in 1-6 English words. Pick the sense that fits the context, not the most common dictionary meaning if the sentence uses another one. If the word belongs to a phrase, idiom, particle verb or fixed expression, give the meaning it has in that phrase (e.g. "to give up" for "ge upp"). For a Korean token with a particle or ending, give the stem's meaning plus what the ending adds (e.g. "fell (past)", "in Seoul").
-Use the sentence numbers n exactly as given. Include every sentence.`;
+   - "level": the CEFR level (A1, A2, B1, B2, C1 or C2) of the word's dictionary form in the sense used here, as a learner would meet it. Everyday basics are A1/A2, news vocabulary is mostly B1/B2, rare or formal words are C1/C2.
+   - "grammar": a grammar note IN ENGLISH about THIS word form only, as it is used in this sentence, in one short sentence (at most about 20 words). Say how the form is built from its base and what that does here, e.g. Korean "체결했어요 = 체결하다 + past -았/었- + polite -어요: 'signed'", "기관은 = 기관 + topic particle 은", Swedish "regeringen = regering + definite -en: 'the government'", "har överklagat = har + supine: perfect tense", or the role of a word in a particle verb or fixed phrase ("ge upp"). Do not explain other words of the sentence. Use "" when the word is just its plain base form with nothing to explain (e.g. a bare noun, "och", "i").
+Use the sentence numbers n exactly as given in each list. Include every sentence of every list.`;
+// All levels, Korean and Swedish, come back together in one request.
+const BOTH_LANGS = { type: 'object', additionalProperties: false, required: ['ko', 'sv'], properties: { ko: GLOSS_SCHEMA, sv: GLOSS_SCHEMA } };
+const ALL_GLOSS_SCHEMA = { type: 'object', additionalProperties: false, required: LEVEL_KEYS, properties: Object.fromEntries(LEVEL_KEYS.map((l) => [l, BOTH_LANGS])) };
 
 const userTextOf = (story) => `Outlet: ${story.source}\nTitle: ${story.title}\n\nArticle text:\n${story.body}`;
 
@@ -208,14 +289,17 @@ async function pace() {
   if (at > now) await new Promise((r) => setTimeout(r, at - now));
 }
 
-async function withRetry(fn, tries = 4) {
+async function withRetry(fn, tries = 6) {
   for (let i = 1; ; i++) {
     try {
       return await fn();
     } catch (e) {
       if (i >= tries) throw e;
-      const wait = 6000 * i;
-      console.warn(`  retry ${i}/${tries - 1} in ${wait / 1000}s (${String(e.message).slice(0, 120)})`);
+      const msg = String(e.message);
+      // On "429 ... Please retry in 56s" wait as long as the server asks; otherwise back off a little more each time.
+      const asked = /\b429\b/.test(msg) ? Number(/retry in (\d+(?:\.\d+)?)/i.exec(msg)?.[1]) : NaN;
+      const wait = Number.isFinite(asked) ? Math.ceil(asked + 2) * 1000 : 6000 * i;
+      console.warn(`  retry ${i}/${tries - 1} in ${wait / 1000}s (${msg.slice(0, 120)})`);
       await new Promise((r) => setTimeout(r, wait));
     }
   }
@@ -281,9 +365,11 @@ function buildUnits(parts, sentences) {
     const words = {};
     for (const w of got?.words ?? []) {
       const key = wordKey(w.word);
-      if (key && !words[key]) words[key] = { base: w.base, en: w.en };
+      const grammar = w.grammar?.trim();
+      if (key && !words[key]) words[key] = { base: w.base, en: w.en, ...(w.level ? { level: w.level } : {}), ...(grammar ? { grammar } : {}) };
     }
-    return { text: p.text, en: got?.en ?? '', ...(p.br ? { br: true } : {}), words };
+    const grammar = got?.grammar?.trim();
+    return { text: p.text, en: got?.en ?? '', ...(grammar ? { grammar } : {}), ...(p.br ? { br: true } : {}), words };
   });
   return { title: units[0], body: units.slice(1) };
 }
@@ -311,22 +397,23 @@ const callJson = (...args) => gate(() => callJsonRaw(...args));
 
 async function writeStory(client, story) {
   const article = userTextOf(story);
-  const levels = Object.keys(LEVELS);
-  const texts = await Promise.all(levels.map((l) => callJson(client, textSystem(l), article, TEXT_SCHEMA)));
-  const byLevel = Object.fromEntries(levels.map((l, i) => [l, { ...texts[i], units: {} }]));
+  // Request 1: the text at every level.
+  const texts = await callJson(client, textSystem(), article, TEXT_SCHEMA);
+  const byLevel = Object.fromEntries(LEVEL_KEYS.map((l) => [l, { ...texts[l], units: {} }]));
 
-  // One small request per level and language, all at the same time (callJson limits how many run at once).
-  await Promise.all(
-    levels.flatMap((l) =>
-      ['ko', 'sv'].map(async (lang) => {
-        const v = byLevel[l];
-        const parts = [{ text: v.title[lang] }, ...splitSentences(v.summary[lang])];
-        const input = parts.map((p, i) => `${i}. ${p.text}`).join('\n');
-        const res = await callJson(client, glossSystem(lang), input, GLOSS_SCHEMA);
-        v.units[lang] = buildUnits(parts, res.sentences);
-      }),
-    ),
-  );
+  // Request 2: word meanings, sentence translations and grammar for every level and language.
+  const parts = {};
+  const sections = [];
+  for (const l of LEVEL_KEYS) {
+    parts[l] = {};
+    for (const [lang, name] of [['ko', 'KOREAN'], ['sv', 'SWEDISH']]) {
+      const v = byLevel[l];
+      parts[l][lang] = [{ text: v.title[lang] }, ...splitSentences(v.summary[lang])];
+      sections.push(`${l.toUpperCase()} ${name}\n${parts[l][lang].map((p, i) => `${i}. ${p.text}`).join('\n')}`);
+    }
+  }
+  const res = await callJson(client, glossSystem(), sections.join('\n\n'), ALL_GLOSS_SCHEMA);
+  for (const l of LEVEL_KEYS) for (const lang of ['ko', 'sv']) byLevel[l].units[lang] = buildUnits(parts[l][lang], res[l][lang].sentences);
   return byLevel;
 }
 
@@ -356,29 +443,53 @@ function todayInStockholm() {
 const existing = fs.existsSync(OUT) ? JSON.parse(fs.readFileSync(OUT, 'utf8')) : { days: [] };
 const seen = new Set(existing.days.flatMap((d) => d.stories.map((s) => s.url)));
 
-console.log(`Picking articles (${PER_COUNTRY} per country)...`);
+// The first run of the day writes PER_COUNTRY stories per country. Later runs the same day only write
+// REFRESH_PER_COUNTRY new ones (or fill up if an earlier run fell short), which keeps Gemini use low.
+const REFRESH_PER_COUNTRY = Number(process.env.NEWS_REFRESH_PER_COUNTRY ?? 2);
+const date = todayInStockholm();
+const earlierToday = existing.days.find((d) => d.date === date)?.stories ?? [];
+// Candidates per country: the newest unseen items from its feeds. One request then orders them by
+// importance and ease, and the best ones that have enough article text are written.
+const CANDIDATES = Number(process.env.NEWS_CANDIDATES ?? 15);
+console.log(`Picking articles (${PER_COUNTRY} per country on the first run of the day, then ${REFRESH_PER_COUNTRY} new per run)...`);
+const want = {};
+const byCountry = {};
+for (const country of ['KR', 'SE', 'GL']) {
+  const have = earlierToday.filter((s) => s.country === country).length;
+  want[country] = Math.max(PER_COUNTRY - have, REFRESH_PER_COUNTRY);
+  byCountry[country] = await candidates(country, seen, CANDIDATES);
+}
+const total = Object.values(byCountry).reduce((n, l) => n + l.length, 0);
+if (total === 0) {
+  // Normal when the feeds have nothing new since the last run: not an error, so the job stays green.
+  console.log('No new articles, leaving news.json unchanged.');
+  process.exit(0);
+}
+
+if (!DRY && PROVIDER === 'gemini' && !process.env.GEMINI_API_KEY && !process.env.GOOGLE_API_KEY) {
+  console.error('GEMINI_API_KEY is not set. Create a free key at https://aistudio.google.com and set it, e.g. in PowerShell:\n  $env:GEMINI_API_KEY = "your-key"');
+  process.exit(1);
+}
+const client = DRY ? null : PROVIDER === 'gemini' ? new GoogleGenAI({}) : new Anthropic();
+
+// --dry-run keeps the feed order and makes no model calls.
+const ordered = DRY ? byCountry : await rank(client, byCountry);
 const picks = [];
 for (const country of ['KR', 'SE', 'GL']) {
-  const got = await pick(country, seen);
-  console.log(`${country}: ${got.length}`);
+  const got = await fill(ordered[country], want[country]);
+  console.log(`${country}: ${got.length} (from ${byCountry[country].length} candidates)`);
   for (const g of got) console.log(`  - [${g.source}] ${g.title}\n    ${g.url}\n    text ${g.body.length} chars, image ${g.image ? 'yes' : 'no'}`);
   picks.push(...got);
 }
 
 if (DRY) {
-  console.log('\n--dry-run: not calling Claude, not writing anything.');
+  console.log('\n--dry-run: no model calls, nothing written.');
   process.exit(0);
 }
 if (picks.length === 0) {
-  console.error('No articles found, leaving news.json unchanged.');
-  process.exit(1);
+  console.log('No new articles with enough text, leaving news.json unchanged.');
+  process.exit(0);
 }
-
-if (PROVIDER === 'gemini' && !process.env.GEMINI_API_KEY && !process.env.GOOGLE_API_KEY) {
-  console.error('GEMINI_API_KEY is not set. Create a free key at https://aistudio.google.com and set it, e.g. in PowerShell:\n  $env:GEMINI_API_KEY = "your-key"');
-  process.exit(1);
-}
-const client = PROVIDER === 'gemini' ? new GoogleGenAI({}) : new Anthropic();
 console.log(`Writing with ${PROVIDER} / ${MODEL}, ${CONCURRENCY} stories at a time`);
 const startedAll = Date.now();
 const results = await pool(picks, CONCURRENCY, async (p, n) => {
@@ -395,7 +506,7 @@ const results = await pool(picks, CONCURRENCY, async (p, n) => {
       ...(p.image ? { image: p.image } : {}),
       level: 'B1',
       ...asVersion(out.b1),
-      versions: { A1: asVersion(out.a1), A2: asVersion(out.a2), C1: asVersion(out.c1) },
+      versions: { A1: asVersion(out.a1) },
     };
   } catch (e) {
     console.warn(`${tag} FAIL: ${e.message}`);
@@ -411,11 +522,9 @@ if (stories.length === 0) {
   process.exit(1);
 }
 
-const date = todayInStockholm();
 // The job runs several times a day: new stories go first, earlier ones from the same day stay.
-// Each country keeps at most MAX_PER_COUNTRY_PER_DAY, the newest ones.
-const MAX_PER_COUNTRY_PER_DAY = Number(process.env.NEWS_MAX_PER_COUNTRY_PER_DAY ?? 10);
-const earlierToday = existing.days.find((d) => d.date === date)?.stories ?? [];
+// Each country keeps at most MAX_PER_COUNTRY_PER_DAY (5 by default), the newest ones.
+const MAX_PER_COUNTRY_PER_DAY = Number(process.env.NEWS_MAX_PER_COUNTRY_PER_DAY ?? PER_COUNTRY);
 const perCountry = {};
 const merged = [...stories, ...earlierToday].filter((s) => (perCountry[s.country] = (perCountry[s.country] ?? 0) + 1) <= MAX_PER_COUNTRY_PER_DAY);
 const days = existing.days.filter((d) => d.date !== date);

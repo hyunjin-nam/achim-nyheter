@@ -4,29 +4,40 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Text } from '@/components/text';
 import { Segmented } from '@/components/segmented';
-import { Fonts, MaxWidth } from '@/constants/theme';
+import { MaxWidth, Stroke } from '@/constants/theme';
 import { useSettings } from '@/lib/settings';
-import { CHOOSABLE_LEVELS, LANG_NAME, LANGS, type Level } from '@/lib/types';
+import { STR } from '@/lib/strings';
+import { CHOOSABLE_LEVELS, LANG_NAME, LANGS } from '@/lib/types';
 import { usePalette } from '@/lib/use-palette';
 
 const HOURS = [7, 8, 9, 12, 18, 20, 21];
-const LEVEL_HELP: Record<Level, string> = {
-  A1: 'A1 · 매우 쉬움 — 아주 짧은 문장, 가장 기본적인 단어',
-  A2: 'A2 · 쉬움 — 짧고 쉬운 문장, 자주 쓰는 단어',
-  B1: 'B1 · 보통 — 자연스러운 뉴스 문장',
-  B2: 'B2 · 중상급',
-  C1: 'C1 · 어려움 — 풍부한 어휘와 긴 문장',
-  C2: 'C2 · 최상급',
-};
 
 export default function Settings() {
   const c = usePalette();
   const { settings, update } = useSettings();
+  // The settings screen is always in English, whatever the main language is.
+  const t = STR.en;
 
   const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
     <View style={{ gap: 10 }}>
-      <Text style={[styles.section, { color: c.muted }]}>{title}</Text>
+      <Text style={[styles.section, { color: c.muted }]}>{title.toUpperCase()}</Text>
       {children}
+    </View>
+  );
+
+  /** One on/off row, outlined like the logo, with a switch in the logo's orange. */
+  const Toggle = ({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) => (
+    <View style={[styles.row, { backgroundColor: c.card, borderColor: c.outline }]}>
+      <Text style={[styles.rowText, { color: c.text }]}>{label}</Text>
+      <Switch
+        value={value}
+        onValueChange={onChange}
+        trackColor={{ true: c.wave, false: c.chip }}
+        thumbColor={Platform.OS === 'ios' ? undefined : '#FFFFFF'}
+        ios_backgroundColor={c.chip}
+        // react-native-web paints the "on" knob green unless told otherwise (not in RN's types).
+        {...(Platform.OS === 'web' ? ({ activeThumbColor: '#FFFFFF' } as object) : {})}
+      />
     </View>
   );
 
@@ -35,38 +46,33 @@ export default function Settings() {
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.column}>
           <View style={styles.header}>
-            <Text style={[styles.title, { color: c.text, fontFamily: Fonts.serif }]}>설정</Text>
-            <Pressable onPress={() => router.back()} hitSlop={12}>
-              <Text style={[styles.done, { color: c.kr }]}>완료</Text>
+            <Text style={[styles.title, { color: c.text }]}>{t.settings}</Text>
+            <Pressable onPress={() => router.back()} hitSlop={12} style={[styles.done, { backgroundColor: c.sun, borderColor: c.onSun }]}>
+              <Text style={[styles.doneText, { color: c.onSun }]}>{t.close}</Text>
             </Pressable>
           </View>
 
-          <Section title="메인 언어 · MAIN LANGUAGE">
+          <Section title={t.mainLanguage}>
             <Segmented
               value={settings.learning}
               onChange={(learning) => update({ learning })}
               options={LANGS.map((l) => ({ value: l, label: LANG_NAME[l] }))}
             />
-            <Text style={{ color: c.muted, fontSize: 13 }}>뉴스를 이 언어로만 보여줘요.</Text>
+            <Text style={[styles.help, { color: c.muted }]}>{t.mainLanguageHelp}</Text>
           </Section>
 
-          <Section title="난이도 · DIFFICULTY">
+          <Section title={t.difficulty}>
             <Segmented
               value={settings.level}
               onChange={(level) => update({ level })}
               options={CHOOSABLE_LEVELS.map((l) => ({ value: l, label: l }))}
             />
-            <Text style={{ color: c.text, fontSize: 16, lineHeight: 23 }}>{LEVEL_HELP[settings.level]}</Text>
-            <Text style={{ color: c.muted, fontSize: 13 }}>
-              기사마다 준비된 난이도가 달라서, 고른 난이도가 없으면 가장 가까운 버전을 보여줘요.
-            </Text>
+            <Text style={{ color: c.text, fontSize: 16, lineHeight: 23 }}>{t.levelHelp[settings.level]}</Text>
+            <Text style={[styles.help, { color: c.muted }]}>{t.levelNote}</Text>
           </Section>
 
-          <Section title="번역 · TRANSLATION">
-            <View style={[styles.row, { backgroundColor: c.card, borderColor: c.line }]}>
-              <Text style={[styles.rowText, { color: c.text }]}>번역도 함께 보기</Text>
-              <Switch value={settings.showTranslation} onValueChange={(showTranslation) => update({ showTranslation })} />
-            </View>
+          <Section title={t.translation}>
+            <Toggle label={t.showTranslation} value={settings.showTranslation} onChange={(showTranslation) => update({ showTranslation })} />
             {settings.showTranslation && (
               <Segmented
                 value={settings.native}
@@ -76,11 +82,14 @@ export default function Settings() {
             )}
           </Section>
 
-          <Section title="알림 · DAILY REMINDER">
-            <View style={[styles.row, { backgroundColor: c.card, borderColor: c.line }]}>
-              <Text style={[styles.rowText, { color: c.text }]}>매일 알림 받기</Text>
-              <Switch value={settings.notify} onValueChange={(notify) => update({ notify })} />
-            </View>
+          <Section title={t.whenTapping}>
+            <Toggle label={t.showSentence} value={settings.showSentence} onChange={(showSentence) => update({ showSentence })} />
+            <Toggle label={t.showGrammar} value={settings.showGrammar} onChange={(showGrammar) => update({ showGrammar })} />
+            <Text style={[styles.help, { color: c.muted }]}>{t.grammarNote}</Text>
+          </Section>
+
+          <Section title={t.reminder}>
+            <Toggle label={t.dailyReminder} value={settings.notify} onChange={(notify) => update({ notify })} />
             {settings.notify && (
               <View style={styles.hours}>
                 {HOURS.map((h) => {
@@ -89,23 +98,20 @@ export default function Settings() {
                     <Pressable
                       key={h}
                       onPress={() => update({ hour: h })}
-                      style={[styles.hour, { backgroundColor: active ? c.text : c.chip }]}>
-                      <Text style={{ color: active ? c.bg : c.text, fontWeight: '600' }}>
-                        {String(h).padStart(2, '0')}:00
-                      </Text>
+                      style={[
+                        styles.hour,
+                        active ? { backgroundColor: c.sun, borderColor: c.onSun } : { backgroundColor: c.card, borderColor: c.outline },
+                      ]}>
+                      <Text style={{ color: active ? c.onSun : c.text, fontWeight: '700' }}>{String(h).padStart(2, '0')}:00</Text>
                     </Pressable>
                   );
                 })}
               </View>
             )}
-            {Platform.OS === 'web' && (
-              <Text style={{ color: c.muted, fontSize: 13 }}>알림은 iPhone 앱에서만 동작해요.</Text>
-            )}
+            {Platform.OS === 'web' && <Text style={[styles.help, { color: c.muted }]}>{t.reminderWebOnly}</Text>}
           </Section>
 
-          <Text style={{ color: c.muted, fontSize: 13, lineHeight: 19 }}>
-            각자 폰에서 설정하면 돼요. 야곱은 메인 언어를 한국어로 바꿔 보세요.
-          </Text>
+          <Text style={[styles.help, { color: c.muted, lineHeight: 19 }]}>{t.perPhone}</Text>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -117,19 +123,21 @@ const styles = StyleSheet.create({
   scroll: { alignItems: 'center', paddingBottom: 48 },
   column: { width: '100%', maxWidth: MaxWidth, paddingHorizontal: 20, paddingTop: 16, gap: 28 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  title: { fontSize: 32, fontWeight: '700' },
-  done: { fontSize: 17, fontWeight: '600' },
+  title: { fontSize: 32, fontWeight: '800', letterSpacing: -1.2 },
+  done: { paddingHorizontal: 16, height: 40, borderRadius: 20, borderWidth: Stroke, justifyContent: 'center' },
+  doneText: { fontSize: 15, fontWeight: '700' },
   section: { fontSize: 12, fontWeight: '700', letterSpacing: 1.4 },
+  help: { fontSize: 13 },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: Stroke,
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
-  rowText: { fontSize: 16 },
+  rowText: { fontSize: 16, fontWeight: '600', flexShrink: 1, paddingRight: 12 },
   hours: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  hour: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 12 },
+  hour: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 12, borderWidth: Stroke },
 });

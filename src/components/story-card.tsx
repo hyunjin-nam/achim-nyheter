@@ -7,6 +7,8 @@ import { Text } from '@/components/text';
 import { STR } from '@/lib/strings';
 import { cachedWord, lookupWord, prefetchWords } from '@/lib/lookup';
 import { type Lang, type Story, type Unit, type WordEntry } from '@/lib/types';
+import { Stroke } from '@/constants/theme';
+import { useSettings } from '@/lib/settings';
 import { usePalette } from '@/lib/use-palette';
 import { useVocab } from '@/lib/vocab';
 
@@ -38,7 +40,7 @@ function Words({
           <RNText
             key={i}
             onPress={() => onWord(part, spot)}
-            style={here === wordKey(part) ? { backgroundColor: c.chip, borderRadius: 4 } : undefined}>
+            style={here === wordKey(part) ? { backgroundColor: c.sun, color: c.onSun, borderRadius: 4 } : undefined}>
             {part}
           </RNText>
         ) : (
@@ -62,6 +64,7 @@ type Props = {
 export function StoryCard({ story, lang, translation, style, onReveal }: Props) {
   const c = usePalette();
   const { has, toggle } = useVocab();
+  const { settings } = useSettings();
   const [tapped, setTapped] = useState<{ word: string; key: string; spot: Spot } | null>(null);
   const t = STR[lang];
   const accent = story.country === 'KR' ? c.kr : story.country === 'SE' ? c.se : c.gl;
@@ -134,12 +137,17 @@ export function StoryCard({ story, lang, translation, style, onReveal }: Props) 
 
   const popup = word ? (
         <View
-      style={[styles.popup, { backgroundColor: c.chip }]}
+      style={[styles.popup, { backgroundColor: c.soft, borderColor: c.outline }]}
       onLayout={(e) => onReveal?.(e.nativeEvent.layout.y + e.nativeEvent.layout.height)}>
           <View style={styles.popupHead}>
             <Text style={[styles.popupWord, { color: c.text }]}>{entry?.base ?? word}</Text>
             {entry?.base && entry.base.toLowerCase() !== key && (
               <Text style={{ color: c.muted, fontSize: 13 }}>← {word}</Text>
+            )}
+            {entry?.level && (
+              <View style={[styles.wordLevel, { backgroundColor: c.sun, borderColor: c.onSun }]}>
+                <Text style={{ color: c.onSun, fontSize: 12, fontWeight: '800' }}>{entry.level}</Text>
+              </View>
             )}
             <Pressable onPress={() => setTapped(null)} hitSlop={10} style={{ marginLeft: 'auto' }}>
               <Text style={{ color: c.muted, fontSize: 16 }}>✕</Text>
@@ -149,9 +157,16 @@ export function StoryCard({ story, lang, translation, style, onReveal }: Props) 
             {meaning ?? (meaning === null ? t.noMeaning : '…')}
           </Text>
           {/* The whole sentence in English, so the word is understood in its context. */}
-          {unit?.en ? (
+          {settings.showSentence && unit?.en ? (
             <View style={[styles.context, { borderTopColor: c.line }]}>
               <Text style={[styles.contextText, { color: c.muted }]}>“{unit.en}”</Text>
+            </View>
+          ) : null}
+          {/* Grammar of the tapped word itself. Older data only has a note for the whole sentence. */}
+          {settings.showGrammar && (entry?.grammar || unit?.grammar) ? (
+            <View style={[styles.context, { borderTopColor: c.line }]}>
+              <Text style={[styles.grammarLabel, { color: c.muted }]}>{entry?.grammar ? t.grammar : t.sentenceGrammar}</Text>
+              <Text style={[styles.grammarText, { color: c.text }]}>{entry?.grammar ?? unit?.grammar}</Text>
             </View>
           ) : null}
           <View style={styles.popupActions}>
@@ -160,12 +175,13 @@ export function StoryCard({ story, lang, translation, style, onReveal }: Props) 
                 word &&
                 toggle(lang, word, {
                   base: entry?.base,
+                  level: entry?.level,
                   [fallbackLang]: meaning ?? undefined,
                   example: unit?.text,
                 })
               }
-              style={[styles.saveBtn, { backgroundColor: saved ? c.card : c.text }]}>
-              <Text style={{ color: saved ? c.text : c.bg, fontSize: 15, fontWeight: '700' }}>
+              style={[styles.saveBtn, saved ? { backgroundColor: c.card, borderColor: c.outline } : { backgroundColor: c.sun, borderColor: c.onSun }]}>
+              <Text style={{ color: saved ? c.text : c.onSun, fontSize: 15, fontWeight: '700' }}>
                 {saved ? t.saved : t.save}
               </Text>
             </Pressable>
@@ -184,16 +200,16 @@ export function StoryCard({ story, lang, translation, style, onReveal }: Props) 
 
   return (
     <View style={[styles.card, { backgroundColor: c.card, borderColor: c.line }, style]}>
-      {story.image && <Image source={{ uri: story.image }} style={[styles.photo, { backgroundColor: c.chip }]} contentFit="cover" />}
+      {story.image && <Image source={{ uri: story.image }} style={[styles.photo, { backgroundColor: c.chip, borderBottomColor: c.outline }]} contentFit="cover" />}
 
       <View style={styles.tag}>
-        <View style={[styles.dot, { backgroundColor: accent }]} />
+        <View style={[styles.dot, { backgroundColor: accent, borderColor: c.onSun }]} />
         <Text style={[styles.tagText, { color: c.muted }]}>
           {t[story.country].toUpperCase()}
         </Text>
         {story.level && (
-          <View style={[styles.level, { backgroundColor: c.chip }]}>
-            <Text style={[styles.levelText, { color: c.text }]}>
+          <View style={[styles.level, { backgroundColor: c.sun, borderColor: c.onSun }]}>
+            <Text style={[styles.levelText, { color: c.onSun }]}>
               {story.level} · {t.level[story.level]}
             </Text>
           </View>
@@ -233,8 +249,8 @@ export function StoryCard({ story, lang, translation, style, onReveal }: Props) 
         <Pressable
           onPress={() => setShowEn((v) => !v)}
           hitSlop={8}
-          style={[styles.translateBtn, { backgroundColor: showEn ? c.text : c.chip }]}>
-          <Text style={{ color: showEn ? c.bg : c.text, fontSize: 15, fontWeight: '700' }}>
+          style={[styles.translateBtn, showEn ? { backgroundColor: c.sun, borderColor: c.onSun } : { backgroundColor: c.card, borderColor: c.outline }]}>
+          <Text style={{ color: showEn ? c.onSun : c.text, fontSize: 15, fontWeight: '700' }}>
             {showEn ? 'Hide translation' : 'Translate'}
           </Text>
         </Pressable>
@@ -252,7 +268,7 @@ export function StoryCard({ story, lang, translation, style, onReveal }: Props) 
         hitSlop={8}
         style={[styles.sourceRow, { borderTopColor: c.line }]}>
         <Text style={[styles.sourceLabel, { color: c.muted }]}>{story.source}</Text>
-        <Text style={[styles.source, { color: accent }]}>{t.read} ↗</Text>
+        <Text style={[styles.source, { color: c.text }]}>{t.read} ↗</Text>
       </Pressable>
     </View>
   );
@@ -261,22 +277,25 @@ export function StoryCard({ story, lang, translation, style, onReveal }: Props) 
 const styles = StyleSheet.create({
   card: { borderRadius: 28, padding: 24, gap: 14 },
   // Edge to edge at the top of the card (cancels the card padding).
-  photo: { alignSelf: 'stretch', aspectRatio: 16 / 10, marginHorizontal: -24, marginTop: -24, marginBottom: 4 },
+  photo: { alignSelf: 'stretch', aspectRatio: 16 / 10, marginHorizontal: -24, marginTop: -24, marginBottom: 4, borderBottomWidth: Stroke },
   tag: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  dot: { width: 8, height: 8, borderRadius: 4 },
-  tagText: { fontSize: 14, fontWeight: '600', letterSpacing: 0.4 },
-  title: { fontSize: 32, lineHeight: 42, fontWeight: '700', letterSpacing: -0.5 },
+  dot: { width: 12, height: 12, borderRadius: 6, borderWidth: 1.5 },
+  tagText: { fontSize: 14, fontWeight: '700', letterSpacing: 1.6 },
+  title: { fontSize: 32, lineHeight: 42, fontWeight: '800', letterSpacing: -1 },
   body: { fontSize: 20, lineHeight: 33 },
-  popup: { borderRadius: 16, padding: 14, gap: 8 },
-  translateBtn: { alignSelf: 'flex-start', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12 },
-  level: { marginLeft: 'auto', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4 },
+  popup: { borderRadius: 18, padding: 14, gap: 8, borderWidth: Stroke },
+  translateBtn: { alignSelf: 'flex-start', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12, borderWidth: Stroke },
+  level: { marginLeft: 'auto', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 3, borderWidth: Stroke },
   levelText: { fontSize: 15, fontWeight: '700' },
   context: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 10, marginTop: 2 },
   contextText: { fontSize: 16, lineHeight: 24, fontStyle: 'italic' },
+  grammarLabel: { fontSize: 12, fontWeight: '700', letterSpacing: 1.2, marginBottom: 4 },
+  grammarText: { fontSize: 15, lineHeight: 22 },
+  wordLevel: { paddingHorizontal: 8, paddingVertical: 1, borderRadius: 8, borderWidth: 1.5 },
   popupActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
-  saveBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12 },
+  saveBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12, borderWidth: Stroke },
   popupHead: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
-  popupWord: { fontSize: 22, fontWeight: '700' },
+  popupWord: { fontSize: 22, fontWeight: '800', letterSpacing: -0.4 },
   meaningRow: { flexDirection: 'row', gap: 10 },
   meaningLang: { width: 72, fontSize: 14, fontWeight: '600', paddingTop: 2 },
   meaning: { flex: 1, fontSize: 18, lineHeight: 26 },

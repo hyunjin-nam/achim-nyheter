@@ -3,13 +3,15 @@ export const LANGS: Lang[] = ['ko', 'sv', 'en'];
 export const LANG_NAME: Record<Lang, string> = { ko: '한국어', sv: 'Svenska', en: 'English' };
 
 /** One word's dictionary entry: its base form and its meaning in each language. */
-export type WordEntry = { base?: string; /** The sentence the word was saved from. */ example?: string } & Partial<Record<Lang, string>>;
+export type WordEntry = { base?: string; /** CEFR level of the word itself (A1 easiest to C2). */ level?: Level; /** Grammar of this word form in its sentence, in English. */ grammar?: string; /** The sentence the word was saved from. */ example?: string } & Partial<Record<Lang, string>>;
 
 /** One sentence of a story with its translation and the meaning of each word *in that sentence*. */
 export type Unit = {
   text: string;
   /** English translation of the whole sentence. */
   en: string;
+  /** Grammar note for the whole sentence, in English. Only in data from before word-level grammar. */
+  grammar?: string;
   /** True when this sentence starts a new paragraph. */
   br?: boolean;
   /** Keyed by the lower-cased word without punctuation. */
@@ -25,7 +27,7 @@ export type Glossary = Partial<Record<Lang, Record<string, WordEntry>>>;
 export type Level = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
 
 /** The difficulties a user can choose in settings. */
-export const CHOOSABLE_LEVELS: Level[] = ['A1', 'A2', 'B1', 'C1'];
+export const CHOOSABLE_LEVELS: Level[] = ['A1', 'B1'];
 
 /** The same story rewritten for another difficulty. */
 export type StoryVersion = {
@@ -63,6 +65,10 @@ export type Settings = {
   /** Language of the optional translation shown below. */
   native: Lang;
   showTranslation: boolean;
+  /** Show the whole sentence in English under the meaning of a tapped word. */
+  showSentence: boolean;
+  /** Show a grammar note for the sentence of a tapped word. */
+  showGrammar: boolean;
   /** Preferred difficulty. */
   level: Level;
   notify: boolean;
@@ -73,7 +79,9 @@ export const DEFAULT_SETTINGS: Settings = {
   learning: 'sv',
   native: 'ko',
   showTranslation: false,
-  level: 'A2',
+  showSentence: true,
+  showGrammar: false,
+  level: 'B1',
   notify: true,
   hour: 8,
 };
