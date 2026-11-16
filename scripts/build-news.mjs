@@ -23,15 +23,19 @@ const PROVIDER = process.env.NEWS_PROVIDER ?? 'gemini';
 const MODEL = process.env.NEWS_MODEL ?? (PROVIDER === 'gemini' ? 'gemini-3.5-flash-lite' : 'claude-opus-5-5');
 
 // Feeds are tried in turn, so each country's five stories come from different outlets.
+// KR and SE use domestic sections only (no world news), so they are about life in Korea / Sweden.
+// World news belongs to GL.
 const FEEDS = {
   KR: [
-    { source: '연합뉴스', url: 'https://www.yna.co.kr/rss/news.xml' },
-    { source: '한겨레', url: 'https://www.hani.co.kr/rss/' },
+    { source: '연합뉴스', url: 'https://www.yna.co.kr/rss/society.xml' },
+    { source: '연합뉴스 지역', url: 'https://www.yna.co.kr/rss/local.xml' },
+    { source: '한겨레', url: 'https://www.hani.co.kr/rss/society/' },
+    { source: '연합뉴스 정치', url: 'https://www.yna.co.kr/rss/politics.xml' },
+    { source: '연합뉴스 경제', url: 'https://www.yna.co.kr/rss/economy.xml' },
   ],
   SE: [
-    { source: 'SVT Nyheter', url: 'https://www.svt.se/nyheter/rss.xml' },
-    { source: 'Ekot (Sveriges Radio)', url: 'https://api.sr.se/api/rss/program/83' },
-    { source: 'Dagens Nyheter', url: 'https://www.dn.se/rss/' },
+    { source: 'SVT Nyheter', url: 'https://www.svt.se/nyheter/inrikes/rss.xml' },
+    { source: 'Dagens Nyheter', url: 'https://www.dn.se/rss/nyheter/sverige/' },
   ],
   GL: [
     { source: 'BBC News', url: 'https://feeds.bbci.co.uk/news/rss.xml' },
@@ -408,8 +412,14 @@ if (stories.length === 0) {
 }
 
 const date = todayInStockholm();
+// The job runs several times a day: new stories go first, earlier ones from the same day stay.
+// Each country keeps at most MAX_PER_COUNTRY_PER_DAY, the newest ones.
+const MAX_PER_COUNTRY_PER_DAY = Number(process.env.NEWS_MAX_PER_COUNTRY_PER_DAY ?? 10);
+const earlierToday = existing.days.find((d) => d.date === date)?.stories ?? [];
+const perCountry = {};
+const merged = [...stories, ...earlierToday].filter((s) => (perCountry[s.country] = (perCountry[s.country] ?? 0) + 1) <= MAX_PER_COUNTRY_PER_DAY);
 const days = existing.days.filter((d) => d.date !== date);
-days.unshift({ date, stories });
+days.unshift({ date, stories: merged });
 fs.mkdirSync(path.dirname(OUT), { recursive: true });
 fs.writeFileSync(OUT, JSON.stringify({ days: days.slice(0, KEEP_DAYS) }) + '\n');
 console.log(`Wrote ${stories.length} stories for ${date} -> ${OUT}`);

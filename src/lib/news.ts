@@ -10,7 +10,7 @@ function cleanGlossary(g?: Glossary): Glossary | undefined {
   for (const lang of Object.keys(g) as (keyof Glossary)[]) {
     out[lang] = {};
     for (const [word, entry] of Object.entries(g[lang] ?? {})) {
-      const key = word.toLowerCase().replace(/[^p{L}p{M}'’-]/gu, '');
+      const key = word.toLowerCase().replace(/[^\p{L}\p{M}'’-]/gu, '');
       if (key && entry) out[lang]![key] = entry;
     }
   }

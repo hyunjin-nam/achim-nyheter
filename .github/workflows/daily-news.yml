@@ -2,11 +2,16 @@ name: Daily news
 
 on:
   schedule:
-    - cron: '0 21 * * *' # 21:00 UTC = 22:00 in Stockholm, 06:00 in Seoul. Takes ~15 min, so it is ready before 08:00 in both
+    - cron: '0 */6 * * *' # every 6 hours: 00, 06, 12, 18 UTC. Each run takes ~15 min
   workflow_dispatch: {}
 
 permissions:
   contents: write
+
+# Never run two at once, they would both push to docs/news.json.
+concurrency:
+  group: daily-news
+  cancel-in-progress: false
 
 jobs:
   build:
