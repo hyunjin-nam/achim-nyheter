@@ -71,6 +71,8 @@ export type Settings = {
   showGrammar: boolean;
   /** Preferred difficulty. */
   level: Level;
+  /** Voice that reads words out loud. */
+  voice: 'female' | 'male';
   notify: boolean;
   hour: number;
 };
@@ -82,6 +84,7 @@ export const DEFAULT_SETTINGS: Settings = {
   showSentence: true,
   showGrammar: false,
   level: 'B1',
+  voice: 'female',
   notify: true,
   hour: 8,
 };

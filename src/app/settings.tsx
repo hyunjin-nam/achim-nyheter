@@ -6,6 +6,7 @@ import { Text } from '@/components/text';
 import { Segmented } from '@/components/segmented';
 import { MaxWidth, Stroke } from '@/constants/theme';
 import { useSettings } from '@/lib/settings';
+import { speak } from '@/lib/speech';
 import { STR } from '@/lib/strings';
 import { CHOOSABLE_LEVELS, LANG_NAME, LANGS } from '@/lib/types';
 import { usePalette } from '@/lib/use-palette';
@@ -86,6 +87,22 @@ export default function Settings() {
             <Toggle label={t.showSentence} value={settings.showSentence} onChange={(showSentence) => update({ showSentence })} />
             <Toggle label={t.showGrammar} value={settings.showGrammar} onChange={(showGrammar) => update({ showGrammar })} />
             <Text style={[styles.help, { color: c.muted }]}>{t.grammarNote}</Text>
+          </Section>
+
+          <Section title={t.voice}>
+            <Segmented
+              value={settings.voice}
+              onChange={(voice) => {
+                update({ voice });
+                // Let the choice be heard right away, in the main language.
+                speak(STR[settings.learning].listen, settings.learning, voice).catch(() => {});
+              }}
+              options={[
+                { value: 'female', label: t.female },
+                { value: 'male', label: t.male },
+              ]}
+            />
+            <Text style={[styles.help, { color: c.muted, lineHeight: 19 }]}>{t.voiceHelp}</Text>
           </Section>
 
           <Section title={t.reminder}>

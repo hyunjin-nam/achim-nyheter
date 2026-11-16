@@ -39,6 +39,11 @@ type Strings = {
   showSentence: string;
   showGrammar: string;
   grammarNote: string;
+  listen: string;
+  voice: string;
+  female: string;
+  male: string;
+  voiceHelp: string;
   reminder: string;
   dailyReminder: string;
   reminderWebOnly: string;
@@ -89,6 +94,11 @@ export const STR: Record<Lang, Strings> = {
     showSentence: '문장 번역 보기',
     showGrammar: '문법 설명 보기',
     grammarNote: '문법 설명은 영어로 나오고, 새로 만들어진 기사부터 볼 수 있어요.',
+    listen: '듣기',
+    voice: '목소리',
+    female: '여성',
+    male: '남성',
+    voiceHelp: '휴대폰에 있는 가장 자연스러운 목소리로 읽어요. 그 성별의 목소리가 없으면 다른 목소리로 읽어요.',
     reminder: '알림',
     dailyReminder: '매일 알림 받기',
     reminderWebOnly: '알림은 휴대폰 앱에서만 동작해요.',
@@ -135,6 +145,11 @@ export const STR: Record<Lang, Strings> = {
     showSentence: 'Visa meningen översatt',
     showGrammar: 'Visa grammatik',
     grammarNote: 'Grammatiken förklaras på engelska och finns i nyheter som skapats från och med nu.',
+    listen: 'Lyssna',
+    voice: 'Röst',
+    female: 'Kvinna',
+    male: 'Man',
+    voiceHelp: 'Den mest naturliga rösten på telefonen används. Saknas en röst av det könet används en annan.',
     reminder: 'Påminnelse',
     dailyReminder: 'Daglig påminnelse',
     reminderWebOnly: 'Påminnelser fungerar bara i mobilappen.',
@@ -181,6 +196,12 @@ export const STR: Record<Lang, Strings> = {
     showSentence: 'Show the sentence translated',
     showGrammar: 'Show grammar',
     grammarNote: 'Grammar is explained in English, in stories made from now on.',
+    listen: 'Listen',
+    voice: 'Voice',
+    female: 'Female',
+    male: 'Male',
+    voiceHelp:
+      "Words are read by the most natural voice on your phone. If it has no voice of that kind for a language, another voice reads instead. On iPhone you can download better voices in Settings › Accessibility › Spoken Content › Voices. Turn off silent mode to hear them.",
     reminder: 'Reminder',
     dailyReminder: 'Daily reminder',
     reminderWebOnly: 'Reminders only work in the phone app.',

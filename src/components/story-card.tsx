@@ -6,6 +6,7 @@ import { Pressable, StyleSheet, Text as RNText, View, type StyleProp, type TextS
 import { Text } from '@/components/text';
 import { STR } from '@/lib/strings';
 import { cachedWord, lookupWord, prefetchWords } from '@/lib/lookup';
+import { speak, stopSpeaking } from '@/lib/speech';
 import { type Lang, type Story, type Unit, type WordEntry } from '@/lib/types';
 import { Stroke } from '@/constants/theme';
 import { useSettings } from '@/lib/settings';
@@ -84,6 +85,16 @@ export function StoryCard({ story, lang, translation, style, onReveal }: Props) 
   // Meaning for this sentence; older data only has a story-wide glossary.
   const entry: WordEntry | undefined = key ? unit?.words[key] ?? story.glossary?.[lang]?.[key] : undefined;
   const saved = word ? has(lang, word) : false;
+
+  // Reading the word out loud stops when another word is tapped or the meaning is closed.
+  const [speaking, setSpeaking] = useState(false);
+  useEffect(() => {
+    if (!speaking) return;
+    return () => {
+      stopSpeaking().catch(() => {});
+      setSpeaking(false);
+    };
+  }, [tapped, speaking]);
 
   // Without a meaning in the data, fall back to a plain word lookup. undefined = loading, null = not found.
   const fallbackLang: Lang = lang === 'en' ? 'ko' : 'en';
@@ -170,6 +181,17 @@ export function StoryCard({ story, lang, translation, style, onReveal }: Props) 
             </View>
           ) : null}
           <View style={styles.popupActions}>
+            <Pressable
+              onPress={() => {
+                if (!word) return;
+                setSpeaking(true);
+                // Korean reads the word without its particle ("부정행위", not "부정행위를"), as shown in the popup.
+                speak(lang === 'ko' ? entry?.base ?? word : word, lang, settings.voice, { onDone: () => setSpeaking(false) }).catch(() => setSpeaking(false));
+              }}
+              accessibilityLabel={t.listen}
+              style={[styles.saveBtn, speaking ? { backgroundColor: c.sun, borderColor: c.onSun } : { backgroundColor: c.card, borderColor: c.outline }]}>
+              <Text style={{ color: speaking ? c.onSun : c.text, fontSize: 15, fontWeight: '700' }}>▶ {t.listen}</Text>
+            </Pressable>
             <Pressable
               onPress={() =>
                 word &&
@@ -298,7 +320,8 @@ const styles = StyleSheet.create({
   popupWord: { fontSize: 22, fontWeight: '800', letterSpacing: -0.4 },
   meaningRow: { flexDirection: 'row', gap: 10 },
   meaningLang: { width: 72, fontSize: 14, fontWeight: '600', paddingTop: 2 },
-  meaning: { flex: 1, fontSize: 18, lineHeight: 26 },
+  // No flex: 1 here. In this column it gives the text zero height on iOS and Android, so the meaning disappears.
+  meaning: { fontSize: 18, lineHeight: 26 },
   tr: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 14, gap: 6 },
   trTitle: { fontSize: 18, lineHeight: 26, fontWeight: '600' },
   trBody: { fontSize: 17, lineHeight: 27 },
