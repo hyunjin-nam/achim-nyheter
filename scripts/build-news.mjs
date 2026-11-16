@@ -27,15 +27,23 @@ const MODEL = process.env.NEWS_MODEL ?? (PROVIDER === 'gemini' ? 'gemini-3.5-fla
 // World news belongs to GL.
 const FEEDS = {
   KR: [
+    // Several outlets, so the same story does not come in three times from one agency.
+    // (SBS, MBC and 조선일보 have feeds, but their article text can't be read without a browser.)
     { source: '연합뉴스', url: 'https://www.yna.co.kr/rss/society.xml' },
-    { source: '연합뉴스 지역', url: 'https://www.yna.co.kr/rss/local.xml' },
+    { source: '경향신문', url: 'https://www.khan.co.kr/rss/rssdata/society_news.xml' },
     { source: '한겨레', url: 'https://www.hani.co.kr/rss/society/' },
-    { source: '연합뉴스 정치', url: 'https://www.yna.co.kr/rss/politics.xml' },
-    { source: '연합뉴스 경제', url: 'https://www.yna.co.kr/rss/economy.xml' },
+    { source: '뉴시스', url: 'https://newsis.com/RSS/society.xml' },
+    { source: '동아일보', url: 'https://rss.donga.com/national.xml' },
+    { source: '연합뉴스 지역', url: 'https://www.yna.co.kr/rss/local.xml' },
   ],
   SE: [
+    // Several outlets, so one big story (e.g. government talks) can't fill the whole day.
+    // (GP has a feed, but only its paywall text can be read.)
     { source: 'SVT Nyheter', url: 'https://www.svt.se/nyheter/inrikes/rss.xml' },
     { source: 'Dagens Nyheter', url: 'https://www.dn.se/rss/nyheter/sverige/' },
+    { source: 'Expressen', url: 'https://feeds.expressen.se/nyheter/' },
+    { source: 'Svenska Dagbladet', url: 'https://www.svd.se/feed/articles.rss' },
+    { source: 'SVT Stockholm', url: 'https://www.svt.se/nyheter/lokalt/stockholm/rss.xml' },
   ],
   GL: [
     { source: 'BBC News', url: 'https://feeds.bbci.co.uk/news/rss.xml' },
@@ -294,8 +302,9 @@ async function withRetry(fn, tries = 6) {
     try {
       return await fn();
     } catch (e) {
-      if (i >= tries) throw e;
       const msg = String(e.message);
+      // The daily quota only resets hours later: retrying now only wastes time.
+      if (i >= tries || /per day/i.test(msg)) throw e;
       // On "429 ... Please retry in 56s" wait as long as the server asks; otherwise back off a little more each time.
       const asked = /\b429\b/.test(msg) ? Number(/retry in (\d+(?:\.\d+)?)/i.exec(msg)?.[1]) : NaN;
       const wait = Number.isFinite(asked) ? Math.ceil(asked + 2) * 1000 : 6000 * i;

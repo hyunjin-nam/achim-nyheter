@@ -7,15 +7,24 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "env": { "EXPO_PUBLIC_NEWS_URL": "https://hyunjin-nam.github.io/achim-nyheter/news.json" }
+      "env": {
+        "EXPO_PUBLIC_NEWS_URL": "https://hyunjin-nam.github.io/achim-nyheter/news.json"
+      },
+      "channel": "development"
     },
     "preview": {
       "distribution": "internal",
-      "env": { "EXPO_PUBLIC_NEWS_URL": "https://hyunjin-nam.github.io/achim-nyheter/news.json" }
+      "env": {
+        "EXPO_PUBLIC_NEWS_URL": "https://hyunjin-nam.github.io/achim-nyheter/news.json"
+      },
+      "channel": "preview"
     },
     "production": {
       "autoIncrement": true,
-      "env": { "EXPO_PUBLIC_NEWS_URL": "https://hyunjin-nam.github.io/achim-nyheter/news.json" }
+      "env": {
+        "EXPO_PUBLIC_NEWS_URL": "https://hyunjin-nam.github.io/achim-nyheter/news.json"
+      },
+      "channel": "production"
     }
   },
   "submit": {

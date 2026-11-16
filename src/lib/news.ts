@@ -32,8 +32,9 @@ function clean(days: Day[]): Day[] {
   }));
 }
 
-// Where the daily job publishes news.json (e.g. GitHub Pages). Without it the bundled sample is shown.
-const NEWS_URL = process.env.EXPO_PUBLIC_NEWS_URL;
+// Where the daily job publishes news.json (GitHub Pages). Built in, so builds and over-the-air updates
+// always have it; EXPO_PUBLIC_NEWS_URL can point elsewhere, and setting it to "" shows the bundled sample.
+const NEWS_URL = process.env.EXPO_PUBLIC_NEWS_URL ?? 'https://hyunjin-nam.github.io/achim-nyheter/news.json';
 
 export function useNews() {
   const [days, setDays] = useState<Day[]>(clean(sample.days as unknown as Day[]));

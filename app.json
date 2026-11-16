@@ -48,7 +48,12 @@
               "displayName": "Word of the moment",
               "description": "A new word from your news every 30 minutes.",
               "ios": {
-                "supportedFamilies": ["systemSmall", "systemMedium", "accessoryRectangular", "accessoryInline"],
+                "supportedFamilies": [
+                  "systemSmall",
+                  "systemMedium",
+                  "accessoryRectangular",
+                  "accessoryInline"
+                ],
                 "initialLayout": "./src/widgets/word-widget.tsx"
               },
               "android": null
@@ -71,6 +76,12 @@
         "projectId": "521cc21b-7883-4a81-b48d-2c09579c8514"
       }
     },
-    "owner": "jakob-and-hyunjin"
+    "owner": "jakob-and-hyunjin",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/521cc21b-7883-4a81-b48d-2c09579c8514"
+    }
   }
 }
